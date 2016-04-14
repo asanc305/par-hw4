@@ -6,14 +6,14 @@ struct Node {
 	struct Node* next;
 };
 
-typedef struct {
+struct Data {
   int id;
   int min;
   int max;
   int k;
-  pthread_cond_t noWork;
-  pthread_mutex_t infoLock;
-} Data;
+  pthread_cond_t *noWork;
+  pthread_mutex_t *infoLock;
+};
 
 struct Node* front = NULL;
 struct Node* rear = NULL;
