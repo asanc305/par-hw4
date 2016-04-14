@@ -2,6 +2,7 @@
 #include <pthread.h>
 #include <stdlib.h>
 #include <math.h>
+#include <unistd.h>
 #include "mainn.h"
 
 Data *threadInfo = NULL;
@@ -16,29 +17,46 @@ void * Slave_Start(void * s)
   int min = (*(Data *) s).min;
   int max = (*(Data *) s).max;
   int k = (*(Data *) s).k;
-  pthread_cond_t noWork = (*(Data *) s).noWork;
-  pthread_mutex_t infoLock = (*(Data *) s).infoLock;
+  int i;
+  pthread_cond_t noWork;
+  pthread_mutex_t infoLock; 
+
+  pthread_cond_init(&noWork, NULL);
+  pthread_mutex_init(&infoLock, NULL);
   
-  printf("Slave Started %i\n", id);
-
-  if (min == -1)
-  {
-    pthread_cond_init(&noWork, NULL);
-    pthread_mutex_init(&infoLock, NULL);
-
-    pthread_mutex_lock(&queueLock);
-    Enqueue(id);
-    pthread_mutex_unlock(&queueLock);
-    pthread_cond_signal(&queueEmpty);
-
-    pthread_mutex_lock(&infoLock);
-    while ((*(Data *) s).min == -1)
-      pthread_cond_wait(&noWork, &infoLock);
-    pthread_mutex_unlock(&infoLock);
-  }
-
-  k = min % k;
-  
+  (*(Data *) s).noWork = noWork;
+	(*(Data *) s).infoLock = infoLock;
+	
+	while(1)
+	{	
+	  pthread_mutex_lock(&queueLock);
+		Enqueue(id);
+		pthread_mutex_unlock(&queueLock);
+		pthread_cond_signal(&queueEmpty);
+		
+		id = (*(Data *) s).id ;
+		min = (*(Data *) s).min;
+		max = (*(Data *) s).max;
+		k = (*(Data *) s).k;
+		
+		pthread_mutex_lock(&infoLock);
+		(*(Data *) s).min = -111;
+  	printf("[SLAVE] waiting %i\n", id);
+    pthread_cond_wait(&noWork, &infoLock);
+  	pthread_mutex_unlock(&infoLock);
+  	
+  	printf("[SLAVE] started %i\n", id);
+  	if ((min % k) != 0)
+  		min = min - (min % k) + k;
+  	
+  	for (i=min; i<=max; i=i+k)
+		{
+  		numbers[i] = 1;
+		}
+		
+		(*(Data *) s).min = -111;
+		printf("[SLAVE] ended %i\n", id);
+	}	
     
 }
 
@@ -71,6 +89,7 @@ int main (int argc, char *argv [])
     }
   }
 
+	sleep(10);
   maxK = floor(sqrt(n));
 
   for (k=2; k <= maxK; k++)
@@ -83,9 +102,9 @@ int main (int argc, char *argv [])
     mod = 0;
     modH = 0;
       
-    mod = range % c;
+    mod = range % (numChunks+1);
 
-    for (i=0; i < numChunks; i++)
+    for (i=0; i <= numChunks; i++)
     {
       pthread_mutex_lock(&queueLock);
       
@@ -98,10 +117,13 @@ int main (int argc, char *argv [])
       pthread_mutex_unlock(&queueLock);
 
       pthread_mutex_lock(&(threadInfo[id].infoLock));
+      
+      printf("MIN = %i\n", threadInfo[id].min);
 
       if (mod == 0 || i < mod)
       {
         threadInfo[id].min = (i * c) + 2;
+        int er = (i*c)+2;
         threadInfo[id].max = (i * c) + 1 + c;
       }
       else
@@ -111,11 +133,15 @@ int main (int argc, char *argv [])
         modH++; 
       }
       
+      printf("[MASTER] Slave started %i\n", id); 
+      threadInfo[id].k = k;
       pthread_mutex_unlock(&(threadInfo[id].infoLock));
-      pthread_cond_signal(&(threadInfo[id].noWork));    
+      pthread_cond_signal(&(threadInfo[id].noWork));   
     }
-  
   }
 
-  while(1);
+  if (numbers[n] == 0)
+  	printf("Its prime\n");
+	else
+		printf("Its not prime\n");
 }
